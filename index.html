@@ -1192,7 +1192,7 @@ body::after {
 
 /* ── Responsive: mobile landscape — left panel + board ── */
 @media (max-height: 500px) and (orientation: landscape) {
-  body { padding: 0; overflow: hidden; }
+  body { padding: 0; padding-top: env(safe-area-inset-top, 8px); overflow: hidden; }
 
   #game-main {
     min-height: 100vh;

@@ -1325,16 +1325,33 @@ body::after {
   </div>
 
   <div id="history-panel">
-    <div class="history-title">점수 이력</div>
+    <div class="history-title">내 기록</div>
     <div id="history-list" class="history-list"></div>
+    <div class="history-title" style="margin-top:20px;">글로벌 랭킹 TOP 20</div>
+    <div id="global-ranking" class="history-list"></div>
   </div>
 </div>
 
 <div class="sum-display" id="sum-display">합: 0</div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
 <script>
 ;(function() {
 'use strict';
+
+// ── Firebase ──
+const firebaseConfig = {
+  apiKey: "AIzaSyCo0WKWvP3zo2YpxuETOQtY6Tl0YtJkXDs",
+  authDomain: "apple-game-8b505.firebaseapp.com",
+  projectId: "apple-game-8b505",
+  storageBucket: "apple-game-8b505.firebasestorage.app",
+  messagingSenderId: "895030510634",
+  appId: "1:895030510634:web:919026233fd6dc4c8a6f53"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
 const ROWS = 10;
 const COLS = 17;
@@ -1651,7 +1668,9 @@ function saveFromTimeup() {
   if (nick) localStorage.setItem('appleGameNickname', nick);
   const sc = getScore();
   if (sc > 0 && !tainted && validateGameState()) {
-    saveHistory({ score: sc, nickname: nick, date: formatDate(), overtimeTime: null, maxCombo });
+    const entry = { score: sc, nickname: nick, date: formatDate(), overtimeTime: null, maxCombo };
+    saveHistory(entry);
+    saveGlobalScore(entry);
     renderHistory();
   }
   document.getElementById('timeup-screen').style.display = 'none';
@@ -1707,11 +1726,13 @@ function saveScore() {
   }
 
   if (sc > 0 && !tainted && validateGameState()) {
+    const entry = { score: sc, nickname: nick, date: formatDate(), overtimeTime: ot, maxCombo };
     if (overtimeActive && overtimeHistoryIndex >= 0) {
       updateHistory(overtimeHistoryIndex, { score: sc, nickname: nick, overtimeTime: ot, maxCombo });
     } else {
-      saveHistory({ score: sc, nickname: nick, date: formatDate(), overtimeTime: ot, maxCombo });
+      saveHistory(entry);
     }
+    saveGlobalScore(entry);
     renderHistory();
   }
   startGame();
@@ -2407,6 +2428,61 @@ function renderHistory() {
   }).join('');
 }
 
+// ── Global ranking (Firestore) ──
+function saveGlobalScore(entry) {
+  db.collection('rankings').add({
+    score: entry.score,
+    nickname: entry.nickname || '???',
+    maxCombo: entry.maxCombo || 0,
+    overtimeTime: entry.overtimeTime || null,
+    date: entry.date,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => {
+    loadGlobalRanking();
+  }).catch(() => {});
+}
+
+function loadGlobalRanking() {
+  const list = document.getElementById('global-ranking');
+  if (!list) return;
+  db.collection('rankings')
+    .orderBy('score', 'desc')
+    .limit(20)
+    .get()
+    .then(snapshot => {
+      if (snapshot.empty) {
+        list.innerHTML = '<div class="history-empty">아직 기록이 없습니다</div>';
+        return;
+      }
+      let bestScore = 0;
+      const entries = [];
+      snapshot.forEach(doc => {
+        const d = doc.data();
+        entries.push(d);
+        if (d.score > bestScore) bestScore = d.score;
+      });
+      list.innerHTML = entries.map((h, i) => {
+        const scoreStr = String(h.score).padStart(3, '0');
+        const ot = h.overtimeTime || '';
+        const nick = h.nickname || '???';
+        const combo = h.maxCombo && h.maxCombo > 1 ? h.maxCombo + 'x' : '';
+        const isBest = h.score === bestScore;
+        return `
+        <div class="history-item${isBest && i === 0 ? ' best' : ''}">
+          <span class="h-rank">${i === 0 ? '👑' : '#' + (i + 1)}</span>
+          <span class="h-score">${scoreStr}</span>
+          <span class="h-combo">${combo}</span>
+          <span class="h-overtime">${ot}</span>
+          <span class="h-nickname">${nick}</span>
+          <span class="h-date">${h.date || ''}</span>
+        </div>`;
+      }).join('');
+    })
+    .catch(() => {
+      list.innerHTML = '<div class="history-empty">랭킹을 불러올 수 없습니다</div>';
+    });
+}
+
 function confirmReset() {
   if (gameActive && getScore() > 0) {
     if (!confirm('현재 게임을 초기화하시겠습니까?')) return;
@@ -2453,6 +2529,7 @@ window.addEventListener('resize', () => {
 
 // Auto-start
 renderHistory();
+loadGlobalRanking();
 startGame();
 
 

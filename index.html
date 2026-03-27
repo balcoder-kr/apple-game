@@ -157,6 +157,35 @@ body::after {
 
 .remaining-value { color: var(--accent-green); }
 
+/* ── Fullscreen button (mobile only) ── */
+#fullscreen-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.2s, border-color 0.2s, transform 0.1s;
+  flex-shrink: 0;
+}
+#fullscreen-btn:hover {
+  background: rgba(255,255,255,0.07);
+  color: var(--text-primary);
+  border-color: rgba(255,255,255,0.18);
+}
+#fullscreen-btn:active { transform: scale(0.92); }
+
+@media (max-width: 932px), (max-height: 500px) {
+  #fullscreen-btn { display: flex; }
+}
+
 /* ── Reset button (icon) ── */
 #reset-btn {
   display: flex;
@@ -257,6 +286,7 @@ body::after {
   border: none;
   box-shadow: none;
   transition: border-color 0.5s, box-shadow 0.5s;
+  touch-action: none;
 }
 
 #game-container::before {
@@ -1265,6 +1295,7 @@ body::after {
   <div id="game-main">
     <div id="game-header">
       <div class="header-top">
+        <button id="fullscreen-btn" title="전체화면">⛶</button>
         <button id="reset-btn" title="초기화">↺</button>
         <div class="timer-block">
           <div class="timer-value" id="timer">2:00</div>
@@ -2385,6 +2416,21 @@ function confirmReset() {
 
 // ── Button event listeners ──
 document.getElementById('reset-btn').addEventListener('click', confirmReset);
+document.getElementById('fullscreen-btn').addEventListener('click', toggleFullscreen);
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+
+document.addEventListener('fullscreenchange', () => {
+  const btn = document.getElementById('fullscreen-btn');
+  btn.textContent = document.fullscreenElement ? '⛶' : '⛶';
+  btn.title = document.fullscreenElement ? '전체화면 해제' : '전체화면';
+});
 document.getElementById('btn-end-save').addEventListener('click', saveScore);
 document.getElementById('btn-end-restart').addEventListener('click', skipAndRestart);
 document.getElementById('btn-timeup-save').addEventListener('click', saveFromTimeup);

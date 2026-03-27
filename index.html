@@ -1738,7 +1738,7 @@ function showTimeupPopup() {
   const lastNick = localStorage.getItem('appleGameNickname') || '';
   document.getElementById('timeup-nickname').value = lastNick;
   document.getElementById('timeup-screen').style.display = 'flex';
-  document.getElementById('timeup-nickname').focus();
+  if (window.matchMedia('(hover: hover)').matches) document.getElementById('timeup-nickname').focus();
 }
 
 function continueOvertime() {
@@ -1813,7 +1813,7 @@ function endGame() {
   const lastNick = localStorage.getItem('appleGameNickname') || '';
   document.getElementById('end-nickname').value = lastNick;
   document.getElementById('end-screen').style.display = 'flex';
-  document.getElementById('end-nickname').focus();
+  if (window.matchMedia('(hover: hover)').matches) document.getElementById('end-nickname').focus();
 }
 
 function saveScore() {

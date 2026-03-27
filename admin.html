@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AppleGame Admin</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #08090c;
+  color: #d0cde0;
+  font-family: 'Segoe UI', sans-serif;
+  padding: 24px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+h1 {
+  font-size: 22px;
+  margin-bottom: 20px;
+  color: #d4a84a;
+}
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+button {
+  padding: 8px 16px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+  color: #d0cde0;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+button:hover { background: rgba(255,255,255,0.1); }
+button.danger { border-color: rgba(212,83,95,0.4); color: #d4535f; }
+button.danger:hover { background: rgba(212,83,95,0.15); }
+.count { font-size: 13px; color: #6b6880; margin-bottom: 12px; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  color: #6b6880;
+  font-weight: 400;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+td {
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+tr:hover { background: rgba(255,255,255,0.03); }
+.score { font-weight: 700; color: #d4a84a; }
+.combo { color: #e88a7a; }
+.nick { color: #5cb8a4; }
+.date { color: #6b6880; font-size: 11px; }
+.del-btn {
+  padding: 3px 8px;
+  font-size: 11px;
+  border-color: rgba(212,83,95,0.3);
+  color: #d4535f;
+}
+.del-btn:hover { background: rgba(212,83,95,0.2); }
+.empty { color: #3d3a4d; padding: 40px; text-align: center; }
+.status {
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  display: none;
+}
+.status.success { display: block; background: rgba(92,184,164,0.1); color: #5cb8a4; }
+.status.error { display: block; background: rgba(212,83,95,0.1); color: #d4535f; }
+</style>
+</head>
+<body>
+
+<h1>AppleGame Admin</h1>
+<div id="status" class="status"></div>
+<div class="toolbar">
+  <button onclick="loadData()">새로고침</button>
+  <button class="danger" onclick="deleteAll()">전체 삭제</button>
+</div>
+<div class="count" id="count"></div>
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>점수</th>
+      <th>콤보</th>
+      <th>오버타임</th>
+      <th>닉네임</th>
+      <th>날짜</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyCo0WKWvP3zo2YpxuETOQtY6Tl0YtJkXDs",
+  authDomain: "apple-game-8b505.firebaseapp.com",
+  projectId: "apple-game-8b505",
+  storageBucket: "apple-game-8b505.firebasestorage.app",
+  messagingSenderId: "895030510634",
+  appId: "1:895030510634:web:919026233fd6dc4c8a6f53"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+let docs = [];
+
+function showStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = 'status ' + type;
+  setTimeout(() => { el.className = 'status'; }, 3000);
+}
+
+function loadData() {
+  db.collection('rankings')
+    .orderBy('score', 'desc')
+    .get()
+    .then(snapshot => {
+      docs = [];
+      snapshot.forEach(doc => docs.push({ id: doc.id, ...doc.data() }));
+      render();
+    })
+    .catch(e => showStatus('로드 실패: ' + e.message, 'error'));
+}
+
+function render() {
+  const tbody = document.getElementById('tbody');
+  document.getElementById('count').textContent = `총 ${docs.length}개 기록`;
+
+  if (docs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">기록이 없습니다</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = docs.map((d, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td class="score">${String(d.score || 0).padStart(3, '0')}</td>
+      <td class="combo">${d.maxCombo && d.maxCombo > 1 ? d.maxCombo + 'x' : '-'}</td>
+      <td>${d.overtimeTime || '-'}</td>
+      <td class="nick">${d.nickname || '???'}</td>
+      <td class="date">${d.date || '-'}</td>
+      <td><button class="del-btn" onclick="deleteOne('${d.id}', '${(d.nickname||'').replace(/'/g,"\\'")}', ${d.score})">삭제</button></td>
+    </tr>
+  `).join('');
+}
+
+function deleteOne(id, nick, score) {
+  if (!confirm(`"${nick}" (${score}점) 기록을 삭제하시겠습니까?`)) return;
+  db.collection('rankings').doc(id).delete()
+    .then(() => {
+      showStatus(`${nick} (${score}점) 삭제 완료`, 'success');
+      loadData();
+    })
+    .catch(e => showStatus('삭제 실패: ' + e.message, 'error'));
+}
+
+function deleteAll() {
+  if (!confirm(`전체 ${docs.length}개 기록을 삭제하시겠습니까?`)) return;
+  if (!confirm('정말로 모든 랭킹을 초기화하시겠습니까? 되돌릴 수 없습니다.')) return;
+
+  const batch = db.batch();
+  docs.forEach(d => batch.delete(db.collection('rankings').doc(d.id)));
+  batch.commit()
+    .then(() => {
+      showStatus('전체 삭제 완료', 'success');
+      loadData();
+    })
+    .catch(e => showStatus('삭제 실패: ' + e.message, 'error'));
+}
+
+loadData();
+</script>
+</body>
+</html>

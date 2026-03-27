@@ -1224,6 +1224,7 @@ body::after {
 
 @media (max-width: 932px) and (orientation: portrait) {
   #rotate-prompt { display: flex; overflow-y: auto; padding: 20px; justify-content: flex-start; padding-top: 24px; }
+  #rotate-prompt.hidden-for-popup { display: none !important; }
   #rotate-prompt .rotate-phone,
   #rotate-prompt .rotate-text { flex-shrink: 0; }
   #game-wrapper, #urgency-vignette, .sum-display { display: none !important; }
@@ -1582,6 +1583,7 @@ function startGame() {
   document.getElementById('start-screen').style.display = 'none';
   document.getElementById('end-screen').style.display = 'none';
   document.getElementById('timeup-screen').style.display = 'none';
+  document.getElementById('rotate-prompt').classList.remove('hidden-for-popup');
 
   displayedScore = 0;
   timeLeft = TOTAL_TIME;
@@ -1738,6 +1740,7 @@ function showTimeupPopup() {
   const lastNick = localStorage.getItem('appleGameNickname') || '';
   document.getElementById('timeup-nickname').value = lastNick;
   document.getElementById('timeup-screen').style.display = 'flex';
+  document.getElementById('rotate-prompt').classList.add('hidden-for-popup');
 }
 
 function continueOvertime() {
@@ -1812,6 +1815,7 @@ function endGame() {
   const lastNick = localStorage.getItem('appleGameNickname') || '';
   document.getElementById('end-nickname').value = lastNick;
   document.getElementById('end-screen').style.display = 'flex';
+  document.getElementById('rotate-prompt').classList.add('hidden-for-popup');
 }
 
 function saveScore() {

@@ -1261,13 +1261,13 @@ body::after {
 
 /* ── Responsive: mobile landscape — left panel + board ── */
 @media (max-height: 500px) and (orientation: landscape) {
-  body { padding: 0; padding-top: env(safe-area-inset-top, 12px); overflow: hidden; }
+  body { padding: 0; padding-top: env(safe-area-inset-top, 40px); padding-bottom: 16px; overflow: hidden; }
 
   #game-main {
-    min-height: 100vh;
+    min-height: 100dvh;
     padding: 0;
     flex-direction: row;
-    align-items: stretch;
+    align-items: center;
     justify-content: center;
   }
 
@@ -1308,7 +1308,7 @@ body::after {
     left: 0;
     right: 0;
     margin: 0;
-    height: 3px;
+    height: 4px;
     max-width: none;
     border-radius: 0;
     z-index: 50;

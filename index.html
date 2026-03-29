@@ -2363,7 +2363,7 @@ function selectRectArea(x1, y1, x2, y2) {
   const pad = getCSSVar('--board-pad');
   const cellSize = getCSSVar('--cell-size');
   const gap = getCSSVar('--gap');
-  const half = cellSize * 0.2;
+  const half = cellSize * 0.25;
 
   const left = Math.min(x1, x2) - half;
   const right = Math.max(x1, x2) + half;

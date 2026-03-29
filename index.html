@@ -2206,119 +2206,41 @@ function spawnFanfare(cc) {
   }
 }
 
-// ── Selection logic ──
-container.addEventListener('mousedown', (e) => {
-  if (!gameActive) return;
-  e.preventDefault();
-  isSelecting = true;
-  const rect = container.getBoundingClientRect();
-  startX = e.clientX - rect.left;
-  startY = e.clientY - rect.top;
-  selRect.style.display = 'block';
-  selRect.style.left = startX + 'px';
-  selRect.style.top = startY + 'px';
-  selRect.style.width = '0px';
-  selRect.style.height = '0px';
-  selRect.classList.remove('valid');
-  prevSelectedSet = new Set();
-  prevValid = false;
-  updateSelection(e);
-});
+// ── Selection logic (path/line drag) ──
+let selectedSet = new Set();
 
-document.addEventListener('mousemove', (e) => {
-  if (!isSelecting || !gameActive) return;
-  e.preventDefault();
-  const rect = container.getBoundingClientRect();
-  const curX = e.clientX - rect.left;
-  const curY = e.clientY - rect.top;
-
-  selRect.style.left = Math.min(startX, curX) + 'px';
-  selRect.style.top = Math.min(startY, curY) + 'px';
-  selRect.style.width = Math.abs(curX - startX) + 'px';
-  selRect.style.height = Math.abs(curY - startY) + 'px';
-
-  updateSelection(e);
-});
-
-document.addEventListener('mouseup', (e) => {
-  if (!isSelecting || !gameActive) return;
-  isSelecting = false;
-  selRect.style.display = 'none';
-  selRect.classList.remove('valid');
-  sumDisplay.style.display = 'none';
-
-  const sum = selectedCells.reduce((a, b) => a + b.val, 0);
-  if (sum === 10 && selectedCells.length > 0) {
-    tryRemove();
-  } else if (selectedCells.length > 0) {
-    selectedCells.forEach(sc => {
-      sc.cell.classList.remove('selected', 'valid-selection');
-      sc.cell.classList.add('invalid-shake');
-    });
-    const cells = [...selectedCells];
-    setTimeout(() => {
-      cells.forEach(sc => sc.cell.classList.remove('invalid-shake'));
-    }, 300);
-  }
-  clearSelection();
-});
-
-function updateSelection(e) {
-  const rect = container.getBoundingClientRect();
-  const curX = e.clientX - rect.left;
-  const curY = e.clientY - rect.top;
-
-  const selLeft = Math.min(startX, curX);
-  const selTop = Math.min(startY, curY);
-  const selRight = Math.max(startX, curX);
-  const selBottom = Math.max(startY, curY);
-
+function getCellUnderPoint(x, y) {
   const pad = getCSSVar('--board-pad');
   const cellSize = getCSSVar('--cell-size');
   const gap = getCSSVar('--gap');
+  const col = Math.floor((x - pad) / (cellSize + gap));
+  const row = Math.floor((y - pad) / (cellSize + gap));
+  if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return null;
+  const cellLeft = pad + col * (cellSize + gap);
+  const cellTop = pad + row * (cellSize + gap);
+  if (x < cellLeft || x > cellLeft + cellSize) return null;
+  if (y < cellTop || y > cellTop + cellSize) return null;
+  const idx = row * COLS + col;
+  const cell = board.children[idx];
+  if (cell.classList.contains('removed')) return null;
+  return { r: row, c: col, val: grid[row][col], cell, idx };
+}
 
-  const newSelected = [];
-  const newSet = new Set();
-  let sum = 0;
+function addCellToSelection(hit) {
+  if (!hit || selectedSet.has(hit.idx)) return;
+  selectedSet.add(hit.idx);
+  selectedCells.push({ r: hit.r, c: hit.c, val: hit.val, cell: hit.cell });
+  updateSelectionDisplay();
+}
 
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const idx = r * COLS + c;
-      const cell = board.children[idx];
-      if (cell.classList.contains('removed')) continue;
-
-      const cellLeft = pad + c * (cellSize + gap);
-      const cellTop = pad + r * (cellSize + gap);
-      const centerX = cellLeft + cellSize / 2;
-      const centerY = cellTop + cellSize / 2;
-
-      if (centerX >= selLeft && centerX <= selRight && centerY >= selTop && centerY <= selBottom) {
-        newSelected.push({ r, c, val: grid[r][c], cell });
-        newSet.add(idx);
-        sum += grid[r][c];
-      }
-    }
-  }
-
-  for (const idx of prevSelectedSet) {
-    if (!newSet.has(idx)) {
-      const cell = board.children[idx];
-      cell.classList.remove('selected', 'valid-selection');
-    }
-  }
-
-  selectedCells = newSelected;
+function updateSelectionDisplay() {
+  const sum = selectedCells.reduce((a, b) => a + b.val, 0);
   const isValid = sum === 10 && selectedCells.length > 0;
 
   selectedCells.forEach(sc => {
     sc.cell.classList.remove('selected', 'valid-selection');
     sc.cell.classList.add(isValid ? 'valid-selection' : 'selected');
   });
-
-  selRect.classList.toggle('valid', isValid);
-
-  prevSelectedSet = newSet;
-  prevValid = isValid;
 
   if (selectedCells.length > 0) {
     sumDisplay.style.display = 'block';
@@ -2336,6 +2258,50 @@ function updateSelection(e) {
     sumDisplay.style.display = 'none';
   }
 }
+
+function getPointFromEvent(e) {
+  const rect = container.getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+container.addEventListener('mousedown', (e) => {
+  if (!gameActive) return;
+  e.preventDefault();
+  isSelecting = true;
+  selectedCells = [];
+  selectedSet = new Set();
+  prevSelectedSet = new Set();
+  const pt = getPointFromEvent(e);
+  addCellToSelection(getCellUnderPoint(pt.x, pt.y));
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isSelecting || !gameActive) return;
+  e.preventDefault();
+  const pt = getPointFromEvent(e);
+  addCellToSelection(getCellUnderPoint(pt.x, pt.y));
+});
+
+document.addEventListener('mouseup', (e) => {
+  if (!isSelecting || !gameActive) return;
+  isSelecting = false;
+  sumDisplay.style.display = 'none';
+
+  const sum = selectedCells.reduce((a, b) => a + b.val, 0);
+  if (sum === 10 && selectedCells.length > 0) {
+    tryRemove();
+  } else if (selectedCells.length > 0) {
+    selectedCells.forEach(sc => {
+      sc.cell.classList.remove('selected', 'valid-selection');
+      sc.cell.classList.add('invalid-shake');
+    });
+    const cells = [...selectedCells];
+    setTimeout(() => {
+      cells.forEach(sc => sc.cell.classList.remove('invalid-shake'));
+    }, 300);
+  }
+  clearSelection();
+});
 
 function tryRemove() {
   if (selectedCells.length === 0) return;
@@ -2407,11 +2373,12 @@ function tryRemove() {
 }
 
 function clearSelection() {
-  for (const idx of prevSelectedSet) {
+  for (const idx of selectedSet) {
     const cell = board.children[idx];
     if (cell) cell.classList.remove('selected', 'valid-selection');
   }
   selectedCells = [];
+  selectedSet = new Set();
   prevSelectedSet = new Set();
 }
 
@@ -2419,42 +2386,26 @@ function clearSelection() {
 container.addEventListener('touchstart', (e) => {
   if (!gameActive) return;
   e.preventDefault();
-  const touch = e.touches[0];
-  const rect = container.getBoundingClientRect();
   isSelecting = true;
-  startX = touch.clientX - rect.left;
-  startY = touch.clientY - rect.top;
-  selRect.style.display = 'block';
-  selRect.style.left = startX + 'px';
-  selRect.style.top = startY + 'px';
-  selRect.style.width = '0px';
-  selRect.style.height = '0px';
-  selRect.classList.remove('valid');
+  selectedCells = [];
+  selectedSet = new Set();
   prevSelectedSet = new Set();
-  prevValid = false;
+  const touch = e.touches[0];
+  const pt = getPointFromEvent(touch);
+  addCellToSelection(getCellUnderPoint(pt.x, pt.y));
 }, { passive: false });
 
 document.addEventListener('touchmove', (e) => {
   if (!isSelecting || !gameActive) return;
   e.preventDefault();
   const touch = e.touches[0];
-  const rect = container.getBoundingClientRect();
-  const curX = touch.clientX - rect.left;
-  const curY = touch.clientY - rect.top;
-
-  selRect.style.left = Math.min(startX, curX) + 'px';
-  selRect.style.top = Math.min(startY, curY) + 'px';
-  selRect.style.width = Math.abs(curX - startX) + 'px';
-  selRect.style.height = Math.abs(curY - startY) + 'px';
-
-  updateSelection({ clientX: touch.clientX, clientY: touch.clientY });
+  const pt = getPointFromEvent(touch);
+  addCellToSelection(getCellUnderPoint(pt.x, pt.y));
 }, { passive: false });
 
 document.addEventListener('touchend', (e) => {
   if (!isSelecting || !gameActive) return;
   isSelecting = false;
-  selRect.style.display = 'none';
-  selRect.classList.remove('valid');
   sumDisplay.style.display = 'none';
 
   const sum = selectedCells.reduce((a, b) => a + b.val, 0);

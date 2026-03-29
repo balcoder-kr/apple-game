@@ -1600,7 +1600,7 @@ function startGame() {
 
   displayedScore = 0;
   timeLeft = TOTAL_TIME;
-  gameActive = true;
+  gameActive = false; // briefly false to block stray clicks
   overtimeActive = false;
   overtimeSeconds = 0;
   regulationScore = 0;
@@ -1634,6 +1634,9 @@ function startGame() {
 
   _timer.stop();
   timerStarted = false;
+
+  // Delay activation to prevent start button click from triggering drag
+  setTimeout(() => { gameActive = true; }, 200);
 
   // 3초간 입력 없으면 자동으로 타이머 시작
   if (autoStartTimeout) clearTimeout(autoStartTimeout);
@@ -2249,27 +2252,68 @@ function addCellToSelection(hit) {
 
 function drawPathLine() {
   const canvas = document.getElementById('path-canvas');
+  if (canvas.width !== container.offsetWidth || canvas.height !== container.offsetHeight) {
+    canvas.width = container.offsetWidth;
+    canvas.height = container.offsetHeight;
+  }
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (selectedCells.length < 2) return;
+  if (selectedCells.length < 1) return;
 
   const pad = getCSSVar('--board-pad');
   const cellSize = getCSSVar('--cell-size');
   const gap = getCSSVar('--gap');
+  const step = cellSize + gap;
 
-  ctx.beginPath();
-  ctx.lineWidth = 3;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = 'rgba(244,197,66,0.5)';
-
-  selectedCells.forEach((sc, i) => {
-    const cx = pad + sc.c * (cellSize + gap) + cellSize / 2;
-    const cy = pad + sc.r * (cellSize + gap) + cellSize / 2;
-    if (i === 0) ctx.moveTo(cx, cy);
-    else ctx.lineTo(cx, cy);
+  // Build a Set for O(1) lookup of selected positions
+  const selSet = new Set();
+  const centers = [];
+  selectedCells.forEach(sc => {
+    selSet.add(`${sc.r},${sc.c}`);
+    centers.push({
+      r: sc.r, c: sc.c,
+      x: pad + sc.c * step + cellSize / 2,
+      y: pad + sc.r * step + cellSize / 2
+    });
   });
+
+  // Draw connections between all cells in same row or same column
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(212,180,100,0.25)';
+  ctx.beginPath();
+
+  // Group by row — connect horizontally
+  const byRow = {};
+  centers.forEach(p => { (byRow[p.r] = byRow[p.r] || []).push(p); });
+  Object.values(byRow).forEach(row => {
+    row.sort((a, b) => a.c - b.c);
+    for (let i = 0; i < row.length - 1; i++) {
+      ctx.moveTo(row[i].x, row[i].y);
+      ctx.lineTo(row[i + 1].x, row[i + 1].y);
+    }
+  });
+
+  // Group by col — connect vertically
+  const byCol = {};
+  centers.forEach(p => { (byCol[p.c] = byCol[p.c] || []).push(p); });
+  Object.values(byCol).forEach(col => {
+    col.sort((a, b) => a.r - b.r);
+    for (let i = 0; i < col.length - 1; i++) {
+      ctx.moveTo(col[i].x, col[i].y);
+      ctx.lineTo(col[i + 1].x, col[i + 1].y);
+    }
+  });
+
   ctx.stroke();
+
+  // Draw small dots at each cell center
+  centers.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(212,180,100,0.35)';
+    ctx.fill();
+  });
 }
 
 function clearPathCanvas() {
@@ -2315,6 +2359,48 @@ function getPointFromEvent(e) {
   return { x: e.clientX - rect.left, y: e.clientY - rect.top };
 }
 
+function selectRectArea(x1, y1, x2, y2) {
+  const pad = getCSSVar('--board-pad');
+  const cellSize = getCSSVar('--cell-size');
+  const gap = getCSSVar('--gap');
+  const half = cellSize / 2;
+
+  const left = Math.min(x1, x2) - half;
+  const right = Math.max(x1, x2) + half;
+  const top = Math.min(y1, y2) - half;
+  const bottom = Math.max(y1, y2) + half;
+
+  // Clear previous selection visuals
+  for (const idx of selectedSet) {
+    const cell = board.children[idx];
+    if (cell) cell.classList.remove('selected', 'valid-selection');
+  }
+
+  selectedCells = [];
+  selectedSet = new Set();
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const idx = r * COLS + c;
+      const cell = board.children[idx];
+      if (cell.classList.contains('removed')) continue;
+
+      const cellLeft = pad + c * (cellSize + gap);
+      const cellTop = pad + r * (cellSize + gap);
+      const centerX = cellLeft + cellSize / 2;
+      const centerY = cellTop + cellSize / 2;
+
+      if (centerX >= left && centerX <= right && centerY >= top && centerY <= bottom) {
+        selectedCells.push({ r, c, val: grid[r][c], cell });
+        selectedSet.add(idx);
+      }
+    }
+  }
+
+  updateSelectionDisplay();
+  drawPathLine();
+}
+
 container.addEventListener('mousedown', (e) => {
   if (!gameActive) return;
   e.preventDefault();
@@ -2323,14 +2409,16 @@ container.addEventListener('mousedown', (e) => {
   selectedSet = new Set();
   prevSelectedSet = new Set();
   const pt = getPointFromEvent(e);
-  addCellToSelection(getCellUnderPoint(pt.x, pt.y));
+  startX = pt.x;
+  startY = pt.y;
+  selectRectArea(startX, startY, pt.x, pt.y);
 });
 
 document.addEventListener('mousemove', (e) => {
   if (!isSelecting || !gameActive) return;
   e.preventDefault();
   const pt = getPointFromEvent(e);
-  addCellToSelection(getCellUnderPoint(pt.x, pt.y));
+  selectRectArea(startX, startY, pt.x, pt.y);
 });
 
 document.addEventListener('mouseup', (e) => {
@@ -2444,7 +2532,9 @@ container.addEventListener('touchstart', (e) => {
   prevSelectedSet = new Set();
   const touch = e.touches[0];
   const pt = getPointFromEvent(touch);
-  addCellToSelection(getCellUnderPoint(pt.x, pt.y));
+  startX = pt.x;
+  startY = pt.y;
+  selectRectArea(startX, startY, pt.x, pt.y);
 }, { passive: false });
 
 document.addEventListener('touchmove', (e) => {
@@ -2452,7 +2542,7 @@ document.addEventListener('touchmove', (e) => {
   e.preventDefault();
   const touch = e.touches[0];
   const pt = getPointFromEvent(touch);
-  addCellToSelection(getCellUnderPoint(pt.x, pt.y));
+  selectRectArea(startX, startY, pt.x, pt.y);
 }, { passive: false });
 
 document.addEventListener('touchend', (e) => {
@@ -2669,12 +2759,16 @@ window.addEventListener('resize', () => {
 loadGlobalRanking();
 document.getElementById('start-screen').style.display = 'flex';
 
-document.getElementById('btn-start').addEventListener('click', () => {
+function handleStart(e) {
+  e.preventDefault();
+  e.stopPropagation();
   if (window.innerWidth <= 932) {
     document.documentElement.requestFullscreen().catch(() => {});
   }
   startGame();
-});
+}
+document.getElementById('btn-start').addEventListener('click', handleStart);
+document.getElementById('btn-start').addEventListener('touchend', handleStart);
 
 
 })();

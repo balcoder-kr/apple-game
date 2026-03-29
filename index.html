@@ -311,6 +311,14 @@ body::after {
   animation-duration: 1.5s;
 }
 
+#path-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
 #game-board {
   display: grid;
   gap: var(--gap);
@@ -1348,7 +1356,10 @@ body::after {
 <div id="urgency-vignette"></div>
 <div id="combo-vignette"></div>
 
-<div id="start-screen" style="display:none;"></div>
+<div id="start-screen">
+  <h1>AppleGame</h1>
+  <button class="btn btn-start" id="btn-start">시작하기</button>
+</div>
 
 <div id="end-screen" style="display:none;">
   <h1 id="end-title">게임 완료</h1>
@@ -1403,6 +1414,7 @@ body::after {
 
     <div id="game-container">
       <div id="game-board"></div>
+      <canvas id="path-canvas"></canvas>
       <div id="selection-rect"></div>
     </div>
 
@@ -1572,6 +1584,7 @@ function renderBoard() {
   }
   setTimeout(() => {
     document.querySelectorAll('.cell.entering').forEach(c => c.classList.remove('entering'));
+    resizePathCanvas();
   }, (ROWS * COLS * 3) + 350);
 }
 
@@ -2231,6 +2244,44 @@ function addCellToSelection(hit) {
   selectedSet.add(hit.idx);
   selectedCells.push({ r: hit.r, c: hit.c, val: hit.val, cell: hit.cell });
   updateSelectionDisplay();
+  drawPathLine();
+}
+
+function drawPathLine() {
+  const canvas = document.getElementById('path-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (selectedCells.length < 2) return;
+
+  const pad = getCSSVar('--board-pad');
+  const cellSize = getCSSVar('--cell-size');
+  const gap = getCSSVar('--gap');
+
+  ctx.beginPath();
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(244,197,66,0.5)';
+
+  selectedCells.forEach((sc, i) => {
+    const cx = pad + sc.c * (cellSize + gap) + cellSize / 2;
+    const cy = pad + sc.r * (cellSize + gap) + cellSize / 2;
+    if (i === 0) ctx.moveTo(cx, cy);
+    else ctx.lineTo(cx, cy);
+  });
+  ctx.stroke();
+}
+
+function clearPathCanvas() {
+  const canvas = document.getElementById('path-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function resizePathCanvas() {
+  const canvas = document.getElementById('path-canvas');
+  canvas.width = container.offsetWidth;
+  canvas.height = container.offsetHeight;
 }
 
 function updateSelectionDisplay() {
@@ -2380,6 +2431,7 @@ function clearSelection() {
   selectedCells = [];
   selectedSet = new Set();
   prevSelectedSet = new Set();
+  clearPathCanvas();
 }
 
 // ── Touch support ──
@@ -2609,12 +2661,20 @@ window.addEventListener('resize', () => {
     adjustMobileSize();
     const cellSize = getCSSVar('--cell-size');
     board.style.gridTemplateColumns = `repeat(${COLS}, ${cellSize}px)`;
+    resizePathCanvas();
   }
 });
 
-// Auto-start
+// Auto-start — show start screen
 loadGlobalRanking();
-startGame();
+document.getElementById('start-screen').style.display = 'flex';
+
+document.getElementById('btn-start').addEventListener('click', () => {
+  if (window.innerWidth <= 932) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
+  startGame();
+});
 
 
 })();
